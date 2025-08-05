@@ -1,0 +1,127 @@
+[master]
+10.8.146.61
+
+[node]
+10.8.145.230
+10.8.144.52
+10.8.145.144
+10.8.144.57
+
+
+10.8.146.81:9100
+
+
+On cluster check node CPU usage 
+kubectl top nodes
+
+######Standard requirements 
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+## Install traefik
+helm repo add traefik https://helm.traefik.io/traefik
+helm repo update
+helm install traefik traefik/traefik --namespace kube-system
+
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+kubectl create namespace cert-manager
+helm install cert-manager jetstack/cert-manager --namespace cert-manager --set installCRDs=true
+
+######sprintinsightsapp
+kubectl create namespace ea
+
+helm install sprintinsights-postgres bitnami/postgresql \
+  --set global.postgresql.auth.postgresPassword=adminpassword \
+  --set global.postgresql.auth.username=admin \
+  --set global.postgresql.auth.password=adminpassword \
+  --set global.postgresql.auth.database=sprintinsightsdb \
+  --set persistence.size=8Gi \
+  --namespace ea
+
+Navigate to the 
+/helm-charts/traefix/certs/sprintinsightsapp/eacerts
+and run
+export OPENSSL_CONF=/etc/ssl/openssl.cnf
+openssl pkcs12 -legacy -in sprintinsightsapptibadeacom.pfx -nocerts -nodes -out sprintinsightsapptibadeacom.key
+openssl pkcs12 -legacy -in sprintinsightsapptibadeacom.pfx -clcerts -nokeys -out sprintinsightsapptibadeacom.crt
+
+password: $pF]RHnAuq^LBXxsb?tL
+
+kubectl delete secret sprintinsightsapp-tls -n ea
+
+kubectl create secret tls sprintinsightsapp-tls \
+  --cert=sprintinsightsapptibadeacom.crt \
+  --key=sprintinsightsapptibadeacom.key \
+  --namespace=ea
+
+
+helm install sprintinsightsapp sprintinsightsapp-1.0.0.tgz -n ea --create-namespace
+
+
+#########Prometheus and Grafana install
+
+kubectl create namespace monitoring
+
+
+## Adding a postgres persistence database
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm install postgres bitnami/postgresql \
+  --set auth.postgresPassword=postgres-password \
+  --set primary.persistence.size=60Gi \
+  --namespace monitoring
+
+helm install monitoring prometheus-community/kube-prometheus-stack -n monitoring -f values.yaml
+
+
+#########Skillmatrix
+helm install skillmatrix-db bitnami/postgresql \
+  --namespace ea --create-namespace \
+  --set auth.postgresPassword=adminpassword \
+  --set auth.username=admin \
+  --set auth.password=adminpassword \
+  --set auth.database=maddenskillmatrix \
+  --set primary.persistence.enabled=true \
+  --set primary.persistence.size=20Gi \
+  --set primary.resources.requests.memory=2Gi \
+  --set primary.resources.requests.cpu=1000m \
+  --set primary.resources.limits.memory=4Gi \
+  --set primary.resources.limits.cpu=2000m
+
+
+helm install maddenskillmatrix maddenskillmatrix-1.0.0.tgz -n ea --create-namespace
+
+#########Thehive
+
+helm install thehive-db bitnami/postgresql \
+  --namespace ea \
+  --set auth.postgresPassword=admin \
+  --set auth.username=admin \
+  --set auth.password=admin \
+  --set auth.database=thehivedb
+
+navigate to  traefix/certs/thehive/eacerts/
+
+export OPENSSL_CONF=/etc/ssl/openssl.cnf
+openssl pkcs12 -legacy -in thehivetibadeacom.pfx -nocerts -nodes -out thehivetibadeacom.key
+openssl pkcs12 -legacy -in thehivetibadeacom.pfx -clcerts -nokeys -out thehivetibadeacom.crt
+
+:e:HmY(kMM%}k<85=))x
+
+
+#if one exists
+kubectl delete secret thehive-local-tls -n ea
+kubectl create secret tls thehive-local-tls \
+  --cert=thehivetibadeacom.crt \
+  --key=thehivetibadeacom.key \
+  --namespace=ea
+
+
+helm install thehiveapp ./thehiveapp-1.0.1.tgz --namespace ea --create-namespace
+
+#########Onboarding
+
+docker build -t sfiore915/onboardingapp:latest .
+docker push sfiore915/onboardingapp:latest 
+helm package .\onboarding-chart\
+helm install madden-onboarding-app ./onboarding-chart-0.1.0.tgz --namespace ea
+
